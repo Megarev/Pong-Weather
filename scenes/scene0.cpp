@@ -256,6 +256,36 @@ void Scene0::Update() {
 	if (pge->GetKey(olc::A).bHeld) paddle0->velocity.x -= 0.05f;
 	if (pge->GetKey(olc::D).bHeld) paddle0->velocity.x += 0.05f;
 
+	// Divide the plane into 2 half planes with a normal vector along paddle's movement direction
+
+	// Initially, the normal vector, n = (1, 0) & Line {A=(0.5, 0), B=(0.5, 1)}
+	// After rotation...
+	if (pge->GetMouse(0).bHeld) {
+
+		olc::vf2d mid_A = { paddle0->position.x, 0.0f };
+		olc::vf2d mid_B = paddle0->position;
+
+		mid_A = mat_rotation * (mid_A - center) + center;
+		mid_B = mat_rotation * (mid_B - center) + center;
+
+		const olc::vf2d& normal = (mid_B - mid_A).perp();
+
+		olc::vf2d m_pos = olc::vf2d(pge->GetMousePos());
+		m_pos.x /= float(pge->ScreenWidth());
+		m_pos.y /= float(pge->ScreenHeight());
+
+		// Compute the half plane test
+		float half_plane_test = (m_pos - mid_A).dot(normal);
+
+		if (half_plane_test > 0.0f) {
+			paddle0->velocity.x -= 0.05f;
+		}
+		else {
+			paddle0->velocity.x += 0.05f;
+		}
+	}
+
+
 	text_indicator0->position = { paddle0->position.x - paddle0->size.x * 0.65f, paddle0->position.y };
 	text_indicator1->position = { paddle0->position.x + paddle0->size.x * 0.5f, paddle0->position.y };
 
@@ -265,6 +295,7 @@ void Scene0::Update() {
 
 	scene_rotation += scene_rotational_velocity * pge->GetElapsedTime();
 	mat_rotation.SetRotation(scene_rotation);
+	scene_rotation = std::fmodf(scene_rotation, 2.0f * PI);
 
 	// Rotate all the objects that affected by the scene's rotation
 	paddle0->mat_rotation = mat_rotation;
@@ -300,7 +331,7 @@ void Scene0::Update() {
 	if (pge->GetKey(olc::RIGHT).bHeld) paddle1->velocity.x += 0.05f;
 #else
 	// PADDLE1 AI system //
-	paddle1->velocity.x = (ball->position.x - paddle1->position.x) * 3.5f;
+	paddle1->velocity.x = (ball->position.x - paddle1->position.x) * 2.5f;
 
 	float velocity_threshold = 5.0f;
 	paddle1->velocity.x = std::fmaxf(-velocity_threshold, std::fminf(paddle1->velocity.x, velocity_threshold));
