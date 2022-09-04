@@ -1,4 +1,5 @@
 #define OLC_PGE_APPLICATION
+#define OLC_SOUNDWAVE
 #include "game_manager.h"
 #include "scenes/scene0.h"
 
@@ -11,6 +12,7 @@ public:
 		// Initialize the static variables
 		GameManager::pge = this;
 		sAppName = "Game";
+		GameManager::sound_engine.InitialiseAudio();
 	}
 
 	bool OnUserCreate() override {
@@ -25,6 +27,13 @@ public:
 	bool OnUserUpdate(float dt) override {
 		
 		GameManager::Update();
+
+		return true;
+	}
+
+	bool OnUserDestroy() override {
+
+		GameManager::sound_engine.DestroyAudio();
 
 		return true;
 	}

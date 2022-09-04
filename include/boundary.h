@@ -20,6 +20,7 @@ public:
 	std::vector<Line> lines;
 	Mat2x2 mat_rotation;
 	float rotation = 0.0f;
+	olc::vf2d size;
 public:
 	int32_t AddLine(const Line& line);
 };

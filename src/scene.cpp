@@ -1,5 +1,4 @@
 #include "scene.h"
-#include "..\include\scene.h"
 
 int32_t Scene::scene_counter = 0u;
 

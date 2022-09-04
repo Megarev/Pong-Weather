@@ -15,5 +15,4 @@ public:
 	std::vector<std::shared_ptr<GameObject>> objects;
 
 	static int32_t scene_counter;
-	float rotation = 0.0f;
 };

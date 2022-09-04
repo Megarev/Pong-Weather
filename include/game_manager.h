@@ -1,6 +1,7 @@
 #pragma once
 #include "scene_manager.h"
 #include "olcPixelGameEngine.h"
+#include "olcSoundWaveEngine.h"
 
 // Singleton to manage game related routines
 class GameManager {
@@ -14,6 +15,7 @@ private:
 	GameManager() {}
 public:
 	static olc::PixelGameEngine* pge;
+	static olc::sound::WaveEngine sound_engine;
 	static SceneManager scene_mgr;
 
 	static float aspect_ratio;

@@ -3,23 +3,26 @@
 Scene0::Scene0() {
 
 	id = "Scene0";
-	float padding = 0.15f;
+	float padding = 0.135f;
 
 	scene_rotation = 0.0f;
 	mat_rotation.SetRotation(scene_rotation);
 
-	/*std::shared_ptr<GameObject> obj_wall0 = std::make_unique<Wall>();
+	std::shared_ptr<GameObject> obj_wall0 = std::make_unique<Wall>();
 	auto wall0 = std::static_pointer_cast<Wall>(obj_wall0);
 	wall0->position = { 0.5f, 0.5f };
 	wall0->size = { 0.1f, 0.1f };
 	wall0->tex.color = { 255, 255, 255 };
-	object_ids["wall0"] = (AddObject(obj_wall0));*/
+	wall0->rotation = scene_rotation;
+	wall0->curr_state = Wall::States::INACTIVE;
+	wall0->mat_rotation.SetRotation(scene_rotation);
+	object_ids["wall0"] = (AddObject(obj_wall0));
 
 	std::shared_ptr<GameObject> obj_paddle0 = std::make_unique<Paddle>();
 	auto paddle0 = std::static_pointer_cast<Paddle>(obj_paddle0);
 	paddle0->position = { 0.5f, 1.0f - padding };
 	paddle0->size = { 0.25f, 0.05f };
-	paddle0->tex.color = olc::CYAN * 0.75f;
+	paddle0->tex.color = olc::GREEN;
 	paddle0->rotation = scene_rotation;
 	paddle0->mat_rotation.SetRotation(scene_rotation);
 	object_ids["paddle0"] = (AddObject(obj_paddle0));
@@ -28,7 +31,7 @@ Scene0::Scene0() {
 	auto paddle1 = std::static_pointer_cast<Paddle>(obj_paddle1);
 	paddle1->position = { 0.5f, 0.0f + padding };
 	paddle1->size = { 0.25f, 0.05f };
-	paddle1->tex.color = olc::MAGENTA * 0.75f;
+	paddle1->tex.color = olc::RED;
 	paddle1->rotation = scene_rotation;
 	paddle1->mat_rotation.SetRotation(scene_rotation);
 	object_ids["paddle1"] = (AddObject(obj_paddle1));
@@ -37,7 +40,7 @@ Scene0::Scene0() {
 	auto ball = std::static_pointer_cast<Ball>(obj_ball);
 	ball->position = { 0.5f, 0.5f };
 	ball->size = { 0.020f, 0.025f };
-	ball->tex.color = { 255, 255, 255 };
+	ball->tex.color = olc::CYAN;
 	ball->velocity = { 0.1f, 0.1f };
 	ball->rotation = scene_rotation;
 	ball->mat_rotation.SetRotation(scene_rotation);
@@ -73,6 +76,8 @@ Scene0::Scene0() {
 	lineD.tex.color = { 255, 255, 255 };
 	lineD.is_score_boundary = false;
 	boundary->AddLine(lineD);
+
+	boundary->size = { lineA.b.x - lineA.a.x, lineB.b.y - lineB.a.y };
 
 	object_ids["boundary"] = (AddObject(obj_boundary));
 
@@ -152,6 +157,14 @@ Scene0::Scene0() {
 	
 		particles.push_back(p);
 	}
+
+
+	// Sound files //
+	assert(paddle_hit.LoadAudioWaveform("hitHurt.wav") && "Failed to load hitHurt.wav");
+	assert(wall_hit.LoadAudioWaveform("ballHit.wav") && "Failed to load ballHit.wav");
+	assert(paddle0_win.LoadAudioWaveform("win0.wav") && "Failed to load win0.wav");
+	assert(paddle1_win.LoadAudioWaveform("win1.wav") && "Failed to load win1.wav");
+	assert(wind_swoosh.LoadAudioWaveform("wind_swoosh.wav") && "Failed to load wind_swoosh.wav");
 }
 
 void Scene0::Update() {
@@ -162,9 +175,11 @@ void Scene0::Update() {
 	// Get the screen's center
 	const olc::vf2d& center = { 0.5f, 0.5f };
 	olc::PixelGameEngine* pge = GameManager::pge;
-	
+	olc::sound::WaveEngine* snd = &GameManager::sound_engine;
+
 	// Time-stepping //
 	accumulator += pge->GetElapsedTime();
+	wall_acc += pge->GetElapsedTime();
 
 	if (accumulator > delay) {
 		accumulator = 0.0f;
@@ -193,7 +208,10 @@ void Scene0::Update() {
 		}
 
 		delay = Util::Random(10.0f, 15.0f);
+		snd->PlayWaveform(&wind_swoosh);
 	}
+
+
 
 	// ==========[CACHE OBJECTS]==========
 	Paddle* paddle0 = nullptr;
@@ -201,7 +219,8 @@ void Scene0::Update() {
 	Boundary* boundary = nullptr;
 	Boundary* show_boundary = nullptr;
 	Ball* ball = nullptr;
-	
+	Wall* wall0 = nullptr;
+
 	gui::Text* scoretext0 = nullptr;
 	gui::Text* scoretext1 = nullptr;
 	gui::Text* text_indicator0 = nullptr;
@@ -219,6 +238,8 @@ void Scene0::Update() {
 		if (obj->id == object_ids["show_boundary"]) show_boundary = static_cast<Boundary*>(obj.get());
 		// Ball
 		if (obj->id == object_ids["ball"]) ball = static_cast<Ball*>(obj.get());
+		// Wall
+		if (obj->id == object_ids["wall0"]) wall0 = static_cast<Wall*>(obj.get());
 		// ScoreText0
 		if (obj->id == object_ids["scoretext0"]) scoretext0 = static_cast<gui::Text*>(obj.get());
 		// ScoreText1
@@ -227,6 +248,7 @@ void Scene0::Update() {
 		if (obj->id == object_ids["text_indicator0"]) text_indicator0 = static_cast<gui::Text*>(obj.get());
 		// ScoreText1
 		if (obj->id == object_ids["text_indicator1"]) text_indicator1 = static_cast<gui::Text*>(obj.get());
+
 
 		obj->Update();
 	}
@@ -237,15 +259,38 @@ void Scene0::Update() {
 		Util::IsPointerEmpty(boundary) &
 		Util::IsPointerEmpty(show_boundary) &
 		Util::IsPointerEmpty(ball) &
+		Util::IsPointerEmpty(wall0) &
 		Util::IsPointerEmpty(scoretext0) &
-		Util::IsPointerEmpty(scoretext1)
+		Util::IsPointerEmpty(scoretext1) &
+		Util::IsPointerEmpty(text_indicator0) &
+		Util::IsPointerEmpty(text_indicator1) 
 		);
 
 	assert(is_pointer_valid && "One of the objects is invalid!");
 
+	// Wall block generation //
+	if (wall_acc > wall_delay) {
+		wall_acc = 0.0f;
+
+		if (!wall_flipper) {
+			wall0->size = { Util::Random(0.1f, 0.55f), Util::Random(0.1f, 0.55f) };
+			wall0->curr_state = Wall::States::FORMING;
+			wall0->position = {
+				Util::Random(center.x - (boundary->size.x - wall0->size.x) * 0.5f, center.x + 0.5f * (boundary->size.x - wall0->size.x)),
+				Util::Random(center.y - (boundary->size.y - wall0->size.y) * 0.5f, center.y + 0.5f * (boundary->size.y - wall0->size.y))
+			};
+			wall0->tex.color = olc::YELLOW;
+		}
+		else {
+			wall0->curr_state = Wall::States::INACTIVE;
+		}
+
+		wall_flipper = !wall_flipper;
+	}
+
 	// ==========[CONVENIENT LAMBDA FUNCTIONS]==========
 	auto ResetBall = [&]() -> void {
-		ball->velocity = { 0.01f + 5.0f * Util::Random(-0.1f, 0.1f), 0.01f + 5.0f * Util::Random(-0.1f, 0.1f) };
+		ball->velocity = { 0.1f + 5.0f * Util::Random(-0.1f, 0.1f), 0.1f + 5.0f * Util::Random(-0.1f, 0.1f) };
 		ball->position = center;
 	};
 
@@ -253,8 +298,11 @@ void Scene0::Update() {
 
 
 	// ==========[INPUTS]==========
-	if (pge->GetKey(olc::A).bHeld) paddle0->velocity.x -= 0.05f;
-	if (pge->GetKey(olc::D).bHeld) paddle0->velocity.x += 0.05f;
+
+	float flip_factor = std::fabsf(scene_rotation) > 0.5f * PI && std::fabsf(scene_rotation) < 1.5f * PI ? -1.0f : 1.0f;
+
+	if (pge->GetKey(olc::A).bHeld) paddle0->velocity.x -= 0.05f * flip_factor;
+	if (pge->GetKey(olc::D).bHeld) paddle0->velocity.x += 0.05f * flip_factor;
 
 	// Divide the plane into 2 half planes with a normal vector along paddle's movement direction
 
@@ -324,6 +372,9 @@ void Scene0::Update() {
 
 	text_indicator1->mat_rotation = mat_rotation;
 	text_indicator1->rotation = scene_rotation;
+
+	wall0->mat_rotation = mat_rotation;
+	wall0->rotation = scene_rotation;
 
 
 #if FALSE
@@ -423,6 +474,8 @@ void Scene0::Update() {
 
 		// TMP: Quick and easy trick
 		ball->velocity.x *= -1.0f;
+
+		snd->PlayWaveform(&wall_hit);
 	}
 
 	if (ball_b_overlap < 0.0f) {
@@ -430,6 +483,8 @@ void Scene0::Update() {
 
 		// TMP: Quick and easy trick
 		ball->velocity.x *= -1.0f;
+
+		snd->PlayWaveform(&wall_hit);
 	}
 
 
@@ -449,7 +504,7 @@ void Scene0::Update() {
 		ball->position = cp;
 
 		if (axis < 0) {
-			ball->velocity.y *= -1.15f;
+			ball->velocity.y *= -1.01f;
 			ball->velocity.x = paddle0->velocity.x * 0.85f + Util::Random(-0.05f, 0.05f);
 		}
 		else {
@@ -457,7 +512,9 @@ void Scene0::Update() {
 		}
 
 		// Clamp the ball's velocity in the y-axis
-		ball->velocity.y = std::fminf(std::fabsf(ball->velocity.y), 3.5f) * Util::Sign(ball->velocity.y);
+		ball->velocity.y = std::fmaxf(0.75f, std::fminf(std::fabsf(ball->velocity.y), 2.5f)) * Util::Sign(ball->velocity.y);
+
+		snd->PlayWaveform(&paddle_hit);
 	}
 
 	if (Collisions::StaticRectVsDynamicRect(paddle1->position - 0.5f * paddle1->size, paddle1->size,
@@ -466,7 +523,7 @@ void Scene0::Update() {
 		ball->position = cp;
 
 		if (axis < 0) {
-			ball->velocity.y *= -1.15f;
+			ball->velocity.y *= -1.01f;
 			ball->velocity.x = paddle1->velocity.x * 0.85f + Util::Random(-0.05f, 0.05f);
 		}
 		else {
@@ -474,11 +531,34 @@ void Scene0::Update() {
 		}
 
 		// Clamp the ball's velocity in the y-axis
-		ball->velocity.y = std::fminf(std::fabsf(ball->velocity.y), 3.5f) * Util::Sign(ball->velocity.y);
+		ball->velocity.y = std::fmaxf(0.75f, std::fminf(std::fabsf(ball->velocity.y), 2.5f)) * Util::Sign(ball->velocity.y);
+		
+		snd->PlayWaveform(&paddle_hit);
 	}
 
 
+	// BALL-WALL Logic
+	// Continuous Collision Detection
 
+	// Wall0
+
+	if (wall0->curr_state == Wall::States::ACTIVE) {
+		if (Collisions::StaticRectVsDynamicRect(wall0->position - 0.5f * wall0->size, wall0->size,
+			ball->position - 0.5f * ball->size, ball->size, ball->velocity, pge->GetElapsedTime(), t_near, cp, axis)) {
+
+			ball->position = cp;
+
+			if (axis < 0) {
+				ball->velocity.y *= -1.0f;
+			}
+			else {
+				ball->velocity.x *= -1.0f;
+			}
+			
+			snd->PlayWaveform(&wall_hit);
+		}
+
+	}
 
 	// SCORE SYSTEM //
 	// Get the line objects
@@ -511,6 +591,8 @@ void Scene0::Update() {
 		scoretext1->color = olc::GREEN;
 		scoretext0->color = olc::RED;
 
+		snd->PlayWaveform(&paddle1_win);
+
 		ResetBall();
 	}
 
@@ -521,6 +603,8 @@ void Scene0::Update() {
 		scoretext0->text = std::to_string(score0);
 		scoretext0->color = olc::GREEN;
 		scoretext1->color = olc::RED;
+
+		snd->PlayWaveform(&paddle0_win);
 
 		ResetBall();
 	}

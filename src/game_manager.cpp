@@ -2,6 +2,7 @@
 
 olc::PixelGameEngine* GameManager::pge = nullptr;
 SceneManager GameManager::scene_mgr;
+olc::sound::WaveEngine GameManager::sound_engine;
 
 float GameManager::aspect_ratio = 0.0f;
 
